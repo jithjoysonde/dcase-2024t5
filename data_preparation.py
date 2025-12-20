@@ -20,6 +20,9 @@ def parse_args():
 
 
 def recursive_glob(path, suffix):
+    print("path in the recursive_glob method:", path)
+    print("suffix in the recursive_glob method:", suffix)
+    
     return (
         glob(os.path.join(path, "*" + suffix))
         + glob(os.path.join(path, "*/*" + suffix))
@@ -49,7 +52,7 @@ class Feature_Extractor:
     def mel(self, y):
         assert np.max(y) <= 1, np.max(y)
         mel_spec = librosa.feature.melspectrogram(
-            y,
+            y=y,
             sr=self.sr,
             n_fft=self.n_fft,
             hop_length=self.hop,
@@ -68,7 +71,7 @@ class Feature_Extractor:
     def pcen(self, y):
         assert np.max(y) <= 1
         mel_spec = librosa.feature.melspectrogram(
-            y * (2**32),
+            y=y * (2**32),
             sr=self.sr,
             n_fft=self.n_fft,
             hop_length=self.hop,
@@ -185,18 +188,24 @@ class Feature_Extractor:
         return result
 
 
-def process(fpath):
+def process(fe, fpath):
     print(fpath)
+    print("Path in the process method:", fpath)
     error_files = []
     for file in tqdm(fpath):
         try:
+            print("Now processing:", file)
             features = fe.extract_feature(file)
+            
             for k in features.keys():
                 npy_path = file.replace(".wav", "_%s.npy" % k)
                 np.save(npy_path, features[k])
-        except:
-            os.remove(file)
+        except Exception as e: #added exception handling to understand problematic files
+        #    os.remove(file) #commenting out part of the except block to prevent deletion of files
+            
             error_files.append(file)
+            print("Exception in file:", file)
+            print("Error:", e) #added exception handling to understand problematic files
             continue
     print("Encounter error in these files:", error_files)
 
@@ -212,37 +221,41 @@ def calculate_feature_mean_std(A):
 def main(data_path: str):
     r"""Prepare features for further developement."""
     PATH = data_path
-
-    #r"""Data Preparation"""
-    #print(f"Checking dataset in the local...")
-    #if not os.path.exists(PATH):
-    #    zipfile_path = os.path.join(*PATH.split("/")[:-1], "Development_Set.zip")
-    #    print(f"Downloading data to {zipfile_path}")
-    #    os.system(f"wget https://zenodo.org/record/6482837/files/Development_Set.zip?download=1 -O {zipfile_path}")
-    #    os.system(f"unzip {zipfile_path}")
+    print("PATH in the main method:", PATH)
+    """Data Preparation""""""
+    print(f"Checking dataset in the local...")
+    if not os.path.exists(PATH):
+        zipfile_path = os.path.join(*PATH.split("/")[:-1], "Development_Set.zip")
+        print(f"Downloading data to {zipfile_path}")
+        os.system(f"wget https://zenodo.org/record/6482837/files/Development_Set.zip?download=1 -O {zipfile_path}")
+        os.system(f"unzip {zipfile_path}")
     print(f"Dataset is now ready!")
-    
-    
-    r"""Feature extraction"""
+    """
+       
+    """"Feature extraction"""
     features = ["mel", "logmel", "pcen", "mfcc", "delta_mfcc"]
+    """
     suffix = ".wav"
     print(f"Extracting features: {features}")
     # SAMPLE_RATE = 22050
     fe = Feature_Extractor()
+    print("PATH in the main method:", PATH)
     files = recursive_glob(PATH, suffix)
-
-    process(files)
-
+    print(f"Files list before process method: {files}")
+    print(f"before process files")
+    process(fe, files)
+    print(f"After process files")
+    """
     files = recursive_glob(PATH, ".wav")
     print(f"Files: {files}")
 
 
-    r"""Feature normalization"""
+    """Feature normalization"""
     print("Preparing the normalized features...")
     for k in features:
         if "un_normalized" in features:
             continue
-        print(k)
+        print(f"Starting feature normalisation for: {k}")
         array_list = []
         for file in tqdm(files):
             npy_path = file.replace(".wav", "_%s.npy" % k)
@@ -263,14 +276,23 @@ def main(data_path: str):
                 array = (array - mean) / std
                 np.save(npy_path, array)
                 array_list.append(array)
-            except:
-                print("no such file", file)
+#            except:
+#                print("no such file", file)
+#                continue
+            except Exception as e: #modified exception handling to understand problematic files
+                error_files.append(file)
+                print("Exception in file, no file found:", file)
+                print("Error:", e) #added exception handling to understand problematic files
                 continue
+        print(f"Completed feature normalisation for: {k}")
         del array_list
-    print("Features normalization is finished!")
+    print("Features normalization is finished!") 
+    
+
 
 
 if __name__ == "__main__":
     flags = parse_args()
-    data_path = os.path.join(flags.data_dir, "Development_Set")
+    #data_path = os.path.join(flags.data_dir, "Development_Set")
+    data_path = flags.data_dir
     main(data_path)
