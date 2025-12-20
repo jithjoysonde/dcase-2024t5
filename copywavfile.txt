@@ -50,5 +50,7 @@ source ./dcase_t5/bin/activate
 /export/home/4joyson/infhome/baseline/dcase-few-shot-bioacoustic/baselines/dcase2024_task5/configs
 
 Run 
-1. python3 data_preparation.py --data-dir /data/msc-proj
-2. python3 train.py features.feature_types="pcen"  train_param.negative_train_contrast=false
+1. 
+python3 data_preparation.py --data-dir /data/msc-proj
+2. 
+python3 train.py features.feature_types="pcen"  train_param.negative_train_contrast=false

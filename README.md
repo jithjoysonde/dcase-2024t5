@@ -1,3 +1,12 @@
+This readme is clone from . My notes are in !- HERE-!
+
+
+!-
+
+
+
+
+-!
 # Baseline for DCASE 2024 Task 5
 
 The automatic detection and analysis of bioacoustic sound events is a valuable tool for assessing animal populations and their behaviours, facilitating conservation efforts, and providing insights into ecological dynamics. By leveraging advanced machine learning and computational bioacoustics techniques, it is possible to decode the complex acoustic signals of diverse species.
