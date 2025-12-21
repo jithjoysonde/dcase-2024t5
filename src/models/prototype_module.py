@@ -401,7 +401,16 @@ class PrototypeModule(LightningModule):
             gamma=self.hparams.train.scheduler_gamma,
             step_size=self.hparams.train.scheduler_step_size,
         )
-        return [optim], [lr_scheduler]
+
+        # PyTorch Lightning expects schedulers to be returned either as a
+        # dict with a 'scheduler' key or with additional keys specifying
+        # the interval/frequency. Returning [optim], [lr_scheduler] can
+        # trigger a MisconfigurationException in newer PL versions.
+        return [optim], [{
+            "scheduler": lr_scheduler,
+            "interval": "epoch",
+            "frequency": 1,
+        }]
 
     # def merging_segment(self, pos_onset_offset, neg_min_length, max_len):
     #     onset, offset = [], []
