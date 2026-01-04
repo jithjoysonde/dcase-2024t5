@@ -979,64 +979,62 @@ class PrototypeModule(LightningModule):
     def evaluate_prototypes(
         self, X_pos, X_neg, X_query, hop_seg, strt_index_query=None, audio_name=None
     ):
-        X_pos = torch.tensor(X_pos)
-        Y_pos = torch.LongTensor(np.zeros(X_pos.shape[0]))
-        X_neg = torch.tensor(X_neg)
-        Y_neg = torch.LongTensor(np.zeros(X_neg.shape[0]))
-        X_query = torch.tensor(X_query)
-        Y_query = torch.LongTensor(np.zeros(X_query.shape[0]))
+        # Ensure tensors live on the same device as the model to avoid
+        # repeated CPU/GPU copies. Use as_tensor to avoid unnecessary copies
+        # when data is already a tensor.
+        device = next(self.net.parameters()).device
+        X_pos = torch.as_tensor(X_pos, device=device)
+        Y_pos = torch.zeros(X_pos.shape[0], dtype=torch.long, device=device)
+        X_neg = torch.as_tensor(X_neg, device=device)
+        Y_neg = torch.zeros(X_neg.shape[0], dtype=torch.long, device=device)
+        X_query = torch.as_tensor(X_query, device=device)
+        Y_query = torch.zeros(X_query.shape[0], dtype=torch.long, device=device)
 
-        # num_batch_query = len(Y_query) // self.hparams.eval.query_batch_size
-        query_dataset = torch.utils.data.TensorDataset(X_query, Y_query)
+        # DataLoaders will preserve the device of tensors created above.
         q_loader = torch.utils.data.DataLoader(
-            dataset=query_dataset,
-            batch_sampler=None,
+            dataset=torch.utils.data.TensorDataset(X_query, Y_query),
             batch_size=self.hparams.eval.query_batch_size,
             shuffle=False,
         )
-        # query_set_feat = torch.zeros(0, 48).cpu()
-        # batch_samplr_pos = EpisodicBatchSampler(Y_pos, 2, 1, self.hparams.train.n_shot)
-        pos_dataset = torch.utils.data.TensorDataset(X_pos, Y_pos)
+
+        # Batch the positive set to reduce many tiny forward passes.
+        pos_batch_size = max(1, min(len(X_pos), getattr(self.hparams.eval, 'pos_batch_size', self.hparams.eval.query_batch_size)))
         pos_loader = torch.utils.data.DataLoader(
-            dataset=pos_dataset, batch_sampler=None
+            dataset=torch.utils.data.TensorDataset(X_pos, Y_pos),
+            batch_size=pos_batch_size,
+            shuffle=False,
         )
-        "List for storing the combined probability across all iterations"
+
+        # List for storing the combined probability across all iterations
         prob_comb = []
-        emb_dim = self.hparams.features.embedding_dim
-        pos_set_feat = torch.zeros(0, emb_dim).cpu()
 
+        # Accumulate per-support-feature means efficiently on-device.
+        pos_feats = []
         print("Creating positive prototype")
-        for batch in tqdm(pos_loader):
-            x, y = batch
-            # x = self.concate_mask(x, mask)
-            feat = self.net(x.cuda())
-            feat = feat.cpu()
-            feat_mean = feat.mean(dim=0).unsqueeze(0)
-            pos_set_feat = torch.cat((pos_set_feat, feat_mean), dim=0)
-        pos_proto = pos_set_feat.mean(dim=0)
+        with torch.no_grad():
+            for batch in tqdm(pos_loader):
+                x, y = batch
+                feat = self.net(x)
+                feat_mean = feat.mean(dim=0)
+                pos_feats.append(feat_mean)
+            if len(pos_feats) == 0:
+                pos_proto = torch.zeros(self.hparams.features.embedding_dim, device=device)
+            else:
+                pos_proto = torch.stack(pos_feats, dim=0).mean(dim=0)
 
-        iterations = self.hparams.eval.iterations
+        iterations = int(self.hparams.eval.iterations)
         for i in range(iterations):
             prob_pos_iter = []
-            neg_indices = torch.randperm(len(X_neg))[: self.hparams.eval.samples_neg]
-            # import ipdb; ipdb.set_trace()
+            neg_indices = torch.randperm(len(X_neg), device=device)[: self.hparams.eval.samples_neg]
             X_neg_ind = X_neg[neg_indices]
-            Y_neg_ind = Y_neg[neg_indices]
-            # X_neg_ind = self.concate_mask(X_neg_ind, mask)
-            feat_neg = self.net(X_neg_ind.cuda())
-            feat_neg = feat_neg.detach().cpu()
-            proto_neg = feat_neg.mean(dim=0)
-            q_iterator = iter(q_loader)
+            with torch.no_grad():
+                feat_neg = self.net(X_neg_ind)
+                proto_neg = feat_neg.mean(dim=0)
 
             print("Iteration number {}".format(i))
-            for batch in tqdm(q_iterator):
-                x_q, y_q = batch
-                x_q = x_q
-                # x_q = self.concate_mask(x_q, mask)
-                x_query = self.net(x_q)
-
-                proto_neg = proto_neg.detach().cpu()
-                x_query = x_query.detach().cpu()
+            for x_q, y_q in tqdm(q_loader):
+                with torch.no_grad():
+                    x_query = self.net(x_q)
 
                 probability_pos = self.get_probability(pos_proto, proto_neg, x_query)
                 prob_pos_iter.extend(probability_pos)

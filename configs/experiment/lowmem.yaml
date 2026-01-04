@@ -1,0 +1,15 @@
+# Aggressive low-memory experiment profile for constrained GPUs
+features:
+  embedding_dim: 1024
+  feature_types: logmel
+
+train_param:
+  n_shot: 3
+  device: cuda
+
+eval_param:
+  query_batch_size: 4
+  negative_set_batch_size: 8
+
+trainer:
+  precision: 16

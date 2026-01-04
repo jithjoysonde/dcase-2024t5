@@ -64,15 +64,14 @@ exp_name: "test"
 set:
   features: false
   train: true
-  eval: false
+  eval: true
 
 path:
   # From the log directory
   root_dir: /data/msc-proj
   train_dir: ${path.root_dir}/Training_Set
   eval_dir: ${path.root_dir}/Validation_Set_DSAI_2025_2026
-  # test_dir: ${path.root_dir}/Test_Set
-  test_dir: null
+  test_dir: ${path.root_dir}/Evaluation_Set_DSAI_2025_2026
   extra_train_dir: null
   mask_dir: null
 

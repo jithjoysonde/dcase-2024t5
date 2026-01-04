@@ -38,9 +38,9 @@ set:
   eval: false
 
 path:
-  root_dir: /import/c4dm-datasets/jinhua-tmp2May/DCASE_Task5
-  train_dir: ${path.root_dir}/Development_Set/Training_Set
-  eval_dir: ${path.root_dir}/Development_Set/Validation_Set
+  root_dir: /data/msc-proj
+  train_dir: ${path.root_dir}/Training_Set
+  eval_dir: ${path.root_dir}/Evaluation_Set_DSAI_2025_2026
   test_dir: null
   extra_train_dir: null
   mask_dir: null
@@ -60,7 +60,7 @@ features:
   n_mels: 128
   hop_mel: 256
   feature_types: logmel
-  embedding_dim: 2048
+  embedding_dim: 1024
   drop_rate: 0.1
   with_bias: false
   non_linearity: leaky_relu
