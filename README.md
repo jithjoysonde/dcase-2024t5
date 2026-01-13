@@ -44,7 +44,7 @@ git clone https://github.com/c4dm/dcase-few-shot-bioacoustic.git
 cd baselines/dcase2024_task5
 
 # create virtual environment
-# we use python == 3.7
+# we use python == 3.7 (requirements file has been updated to 3.11 thanks to Yue Yang)
 python -m venv ./dcase_t5
 source ./dcase_t5/bin/activate
 pip3 install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu113
