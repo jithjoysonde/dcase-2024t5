@@ -18,7 +18,7 @@ defaults:
 
 original_work_dir: ${hydra:runtime.cwd}
 
-data_dir: ${original_work_dir}/data/
+data_dir: /data/msc-proj/
 
 print_config: True
 
@@ -38,10 +38,10 @@ set:
   eval: false
 
 path:
-  root_dir: /import/c4dm-datasets/jinhua-tmp2May/DCASE_Task5
-  train_dir: ${path.root_dir}/Development_Set/Training_Set
-  eval_dir: ${path.root_dir}/Development_Set/Validation_Set
-  test_dir: null
+  root_dir: /data/msc-proj
+  train_dir:  ${path.root_dir}/Training_Set
+  eval_dir: ${path.root_dir}/Validation_Set_DSAI_2025_2026
+  test_dir: ${path.root_dir}/Evaluation_Set_DSAI_2025_2026
   extra_train_dir: null
   mask_dir: null
 

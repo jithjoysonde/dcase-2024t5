@@ -59,12 +59,12 @@ disable_cudnn: False
 # (you can overwrite this name in experiment configs)
 name: "baseline"
 
-exp_name: "test"
+exp_name: "jjtest"
 
 set:
   features: false
   train: true
-  eval: false
+  eval: true
 
 path:
   # From the log directory

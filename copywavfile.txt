@@ -54,3 +54,9 @@ Run
 python3 data_preparation.py --data-dir /data/msc-proj
 2. 
 python3 train.py features.feature_types="pcen"  train_param.negative_train_contrast=false
+
+
+python3 train.py features.feature_types="spec"  train_param.negative_train_contrast=false exp_name="jjpcenNTCF"
+
+
+python3 test.py features.feature_types="logmel" train_param.negative_train_contrast=false exp_name="jjtestonVallogmelNTCF" ckpt_path="/data/4joyson/proj/logs/experiments/runs/baseline/2026-01-14_23-57-28/checkpoints/epoch_000_val_acc_0.81.ckpt" 
