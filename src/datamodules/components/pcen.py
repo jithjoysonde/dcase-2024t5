@@ -62,7 +62,13 @@ class Feature_Extractor:
             else:
                 mean, std = Feature_Extractor.mean_std[suffix]
                 features.append((np.load(feature_path) - mean) / std)
-            self.feature_lens.append(features[-1].shape[1])
+        
+        # Ensure all features have the same time length by truncating to the minimum
+        if features:
+            min_len = min(f.shape[0] for f in features)
+            features = [f[:min_len] for f in features]
+            self.feature_lens = [f.shape[1] for f in features]
+        
         return np.concatenate(features, axis=1)
 
     # def apply_mask(self, features, mask):
