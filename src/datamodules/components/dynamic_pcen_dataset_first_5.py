@@ -36,14 +36,11 @@ class PrototypeDynamicArrayDataSetWithEval(Dataset):
         self.samples_per_cls = train_param.n_shot * 2
         self.seg_len = train_param.seg_len
 
-        if path.test_dir is not None:
-            self.fe = Feature_Extractor(
-                self.features, audio_path=[path.train_dir, path.eval_dir, path.test_dir]
-            )
-        else:
-            self.fe = Feature_Extractor(
-                self.features, audio_path=[path.train_dir, path.eval_dir]
-            )
+        # Filter out None/null paths before passing to Feature_Extractor
+        audio_paths = [p for p in [path.train_dir, path.eval_dir, path.test_dir] if p and p != "null"]
+        self.fe = Feature_Extractor(
+            self.features, audio_path=audio_paths
+        )
 
         print(
             "Build the training dataset with suffix",
@@ -369,12 +366,15 @@ class PrototypeDynamicArrayDataSetWithEval(Dataset):
 
     def get_all_csv_files(self):
         extension = "*.csv"
-        eval_csv = [
-            file
-            for path_dir, _, _ in os.walk(self.path.eval_dir)
-            for file in glob(os.path.join(path_dir, extension))
-        ]
-        if self.path.test_dir is not None:
+        eval_csv = []
+        # Only process eval_dir if it's valid
+        if self.path.eval_dir and self.path.eval_dir != "null":
+            eval_csv = [
+                file
+                for path_dir, _, _ in os.walk(self.path.eval_dir)
+                for file in glob(os.path.join(path_dir, extension))
+            ]
+        if self.path.test_dir is not None and self.path.test_dir != "null":
             eval_csv += [
                 file
                 for path_dir, _, _ in os.walk(self.path.test_dir)

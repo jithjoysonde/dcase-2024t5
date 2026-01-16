@@ -34,14 +34,11 @@ class PrototypeDynamicArrayDataSetVal(Dataset):
         self.train_param = train_param
         self.samples_per_cls = train_param.n_shot * 2
         self.seg_len = train_param.seg_len
-        if path.test_dir is not None:
-            self.fe = Feature_Extractor(
-                self.features, audio_path=[path.train_dir, path.eval_dir, path.test_dir]
-            )
-        else:
-            self.fe = Feature_Extractor(
-                self.features, audio_path=[path.train_dir, path.eval_dir]
-            )
+        # Filter out None/null paths before passing to Feature_Extractor
+        audio_paths = [p for p in [path.train_dir, path.eval_dir, path.test_dir] if p and p != "null"]
+        self.fe = Feature_Extractor(
+            self.features, audio_path=audio_paths
+        )
 
         print(
             "Build the validation dataset with suffix",
@@ -293,6 +290,9 @@ class PrototypeDynamicArrayDataSetVal(Dataset):
 
     def get_all_csv_files(self):
         extension = "*.csv"
+        # Skip eval_dir if it's None or null
+        if not self.path.eval_dir or self.path.eval_dir == "null":
+            return []
         return [
             file
             for path_dir, _, _ in os.walk(self.path.eval_dir)

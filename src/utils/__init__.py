@@ -153,10 +153,33 @@ def finish(
     logger: List[pl.loggers.LightningLoggerBase],
 ) -> None:
     """Makes sure everything closed properly."""
+    import sys
+    import subprocess
+    import atexit
 
     # without this sweeps with wandb logger might crash!
     for lg in logger:
         if isinstance(lg, pl.loggers.wandb.WandbLogger):
             import wandb
+            import time
 
-            wandb.finish()
+            try:
+                log.info("Finishing W&B run...")
+                # First, properly finish the W&B run to mark it as completed
+                wandb.finish()
+                
+                # Give W&B time to mark the run as finished on the server
+                time.sleep(20)
+                
+                # Now forcefully kill any lingering wandb-service processes
+                # that may still be uploading in the background
+                log.info("Cleaning up W&B background processes...")
+                subprocess.run(["pkill", "-9", "-f", "wandb-service"], 
+                               stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+                
+                log.info("W&B cleanup complete.")
+            except Exception as e:
+                log.warning(f"Error finalizing W&B: {e}")
+                # Still try to kill background processes
+                subprocess.run(["pkill", "-9", "-f", "wandb-service"], 
+                               stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)

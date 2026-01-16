@@ -46,11 +46,15 @@ class PrototypeTestSet(Dataset):
         self.fe = Feature_Extractor(self.features)
 
         extension = "*.csv"
-        self.all_csv_files = [
-            file
-            for path_dir, _, _ in os.walk(self.path.eval_dir)
-            for file in glob(os.path.join(path_dir, extension))
-        ]
+        # Only process eval_dir if it's valid
+        if self.path.eval_dir and self.path.eval_dir != "null":
+            self.all_csv_files = [
+                file
+                for path_dir, _, _ in os.walk(self.path.eval_dir)
+                for file in glob(os.path.join(path_dir, extension))
+            ]
+        else:
+            self.all_csv_files = []
         self.all_csv_files = sorted(self.all_csv_files)
 
     def __len__(self):

@@ -7,7 +7,7 @@ from typing import Any, List
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import over
+#from sqlalchemy import over
 import torch
 from pytorch_lightning import LightningModule
 from torchmetrics import MaxMetric
@@ -83,6 +83,55 @@ class PrototypeModule(LightningModule):
         self.negative_result = {}
 
         self.onset_offset = {}
+
+    def transfer_batch_to_device(self, batch, device, dataloader_idx):
+        if not self.trainer.testing:
+            return super().transfer_batch_to_device(batch, device, dataloader_idx)
+
+        inner, strt_index_query, audio_name, seg_len = batch
+
+        (
+            X_pos,
+            X_neg,
+            X_query,
+            X_pos_neg,
+            X_neg_neg,
+            X_query_neg,
+            hop_seg,
+            hop_seg_neg,
+            max_len,
+            neg_min_length,
+        ) = inner
+
+        # move ONLY metadata + small tensors to GPU
+        hop_seg = hop_seg.to(device)
+        hop_seg_neg = hop_seg_neg.to(device)
+        max_len = max_len.to(device)
+        neg_min_length = neg_min_length.to(device)
+        strt_index_query = strt_index_query.to(device)
+
+        # keep the giant tensors on CPU
+        X_pos = X_pos.cpu()
+        X_neg = X_neg.cpu()
+        X_query = X_query.cpu()
+        X_pos_neg = X_pos_neg.cpu()
+        X_neg_neg = X_neg_neg.cpu()
+        X_query_neg = X_query_neg.cpu()
+
+        inner = (
+            X_pos,
+            X_neg,
+            X_query,
+            X_pos_neg,
+            X_neg_neg,
+            X_query_neg,
+            hop_seg,
+            hop_seg_neg,
+            max_len,
+            neg_min_length,
+        )
+
+        return (inner, strt_index_query, audio_name, seg_len)
 
     def forward(self, x: torch.Tensor):
         # with torch.no_grad():
@@ -318,40 +367,6 @@ class PrototypeModule(LightningModule):
         )
         for file in glob("*/PSDS_Eval_*.csv"):
             det_t = pd.read_csv(os.path.join(file), sep="\t")
-
-            # Merge overlapping detections for the same event_label and
-            # filename. PSDSEval requires detections for a given class/file
-            # not to overlap; collapse any intersecting intervals to avoid
-            # PSDSEvalError.
-            def _merge_overlaps(df):
-                df = df.copy()
-                # ensure numeric
-                df["onset"] = df["onset"].astype(float)
-                df["offset"] = df["offset"].astype(float)
-                rows = []
-                for (label, fname), g in df.groupby(["event_label", "filename"]):
-                    g_sorted = g.sort_values("onset")
-                    cur_on, cur_off = None, None
-                    for _, r in g_sorted.iterrows():
-                        o = float(r["onset"]) 
-                        f = float(r["offset"]) 
-                        if cur_on is None:
-                            cur_on, cur_off = o, f
-                        else:
-                            # overlap or contiguous -> merge
-                            if o <= cur_off + 1e-9:
-                                cur_off = max(cur_off, f)
-                            else:
-                                rows.append([label, cur_on, cur_off, fname])
-                                cur_on, cur_off = o, f
-                    if cur_on is not None:
-                        rows.append([label, cur_on, cur_off, fname])
-                if len(rows) == 0:
-                    return df
-                merged = pd.DataFrame(rows, columns=["event_label", "onset", "offset", "filename"])
-                return merged
-
-            det_t = _merge_overlaps(det_t)
             psds_eval.add_operating_point(det_t)
         psds = psds_eval.psds(alpha_ct, alpha_st, max_efpr)
         print(f"\nPSDS-Score: {psds.value:.5f}")
@@ -379,6 +394,34 @@ class PrototypeModule(LightningModule):
         self.log("psds", psds.value)
 
     def test_epoch_end(self, outputs: List[Any]):
+        # Check if evaluation is enabled (safely access set config which may not exist in hparams)
+        eval_enabled = False
+        if hasattr(self.hparams, "set"):
+            eval_enabled = self.hparams.set.get("eval", False)
+        
+        eval_dir = self.hparams.path.get("eval_dir")
+        test_dir = self.hparams.path.get("test_dir")
+        
+        # Validate that at least one valid directory exists
+        if (not eval_dir or eval_dir == "null") and (not test_dir or test_dir == "null"):
+            raise ValueError(
+                "Error: Both eval_dir and test_dir are null or invalid. "
+                "Please provide at least one valid directory path."
+            )
+        
+        # Skip evaluation if eval is set to False
+        if not eval_enabled:
+            print("[INFO] Evaluation metrics calculation SKIPPED - 'eval' is set to False in config")
+            print("[INFO] Running prediction only on test_dir")
+            self.convert_eval_val()
+            return
+        
+        # Check eval_dir validity only if evaluation is enabled
+        if not eval_dir or eval_dir == "null":
+            raise ValueError(
+                "Error: eval_dir is required when 'eval' is set to True, but it is null or invalid."
+            )
+        
         # self.split_long_segments_based_on_energy() # TODO checkout if you need this function
         best_result = None
         best_f_measure = 0.0
@@ -414,21 +457,16 @@ class PrototypeModule(LightningModule):
             self.log(str(k), best_result[k])
         # New evaluation method
         self.convert_eval_val()
-        self.calculate_psds()
+        #self.calculate_psds()
 
     def on_epoch_end(self):
         # reset metrics at the end of every epoch
         pass
 
     def configure_optimizers(self):
-        """Choose what optimizers and learning-rate schedulers to use in your optimization.
-        Normally you'd need one. But in the case of GANs or similar you might have multiple.
-
-        See examples here:
-            https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#configure-optimizers
-        """
         optim = torch.optim.Adam(
-            [{"params": self.net.parameters()}], lr=self.hparams.train.lr_rate
+            [{"params": self.net.parameters()}],
+            lr=self.hparams.train.lr_rate
         )
         lr_scheduler = torch.optim.lr_scheduler.StepLR(
             optimizer=optim,
@@ -436,41 +474,18 @@ class PrototypeModule(LightningModule):
             step_size=self.hparams.train.scheduler_step_size,
         )
 
-        # PyTorch Lightning expects schedulers to be returned either as a
-        # dict with a 'scheduler' key or with additional keys specifying
-        # the interval/frequency. Returning [optim], [lr_scheduler] can
-        # trigger a MisconfigurationException in newer PL versions.
-        return [optim], [{
-            "scheduler": lr_scheduler,
-            "interval": "epoch",
-            "frequency": 1,
-        }]
-
-    def lr_scheduler_step(self, scheduler, optimizer_idx, metric=None):
-        """Compatibility hook: manually step the LR scheduler.
-
-        Some combinations of `torch` and `pytorch_lightning` validate the
-        scheduler API strictly. Providing this hook avoids the
-        `MisconfigurationException` by stepping the scheduler manually.
-        """
-        # Prefer stepping with metric if provided and supported.
-        if metric is None:
-            try:
-                scheduler.step()
-            except TypeError:
-                # Fallback: some schedulers expect an epoch arg
-                try:
-                    scheduler.step(None)
-                except Exception:
-                    pass
-        else:
-            try:
-                scheduler.step(metric)
-            except TypeError:
-                try:
-                    scheduler.step()
-                except Exception:
-                    pass
+        return {
+            "optimizer": optim,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": "epoch",
+                "frequency": 1,
+                "monitor": None,
+            },
+        }
+    
+    def lr_scheduler_step(self, scheduler, *args, **kwargs):
+        scheduler.step()
 
     # def merging_segment(self, pos_onset_offset, neg_min_length, max_len):
     #     onset, offset = [], []
@@ -1025,23 +1040,53 @@ class PrototypeModule(LightningModule):
             # X_neg_ind = self.concate_mask(X_neg_ind, mask)
             feat_neg = self.net(X_neg_ind.cuda())
             feat_neg = feat_neg.detach().cpu()
+            #proto_neg = feat_neg.mean(dim=0)
+            # q_iterator = iter(q_loader)
+
+            # print("Iteration number {}".format(i))
+            # for batch in tqdm(q_iterator):
+            #     x_q, y_q = batch
+            #     x_q = x_q
+            #     # x_q = self.concate_mask(x_q, mask)
+            #     x_query = self.net(x_q)
+
+            #     proto_neg = proto_neg.detach().cpu()
+            #     x_query = x_query.detach().cpu()
+
+            #     probability_pos = self.get_probability(pos_proto, proto_neg, x_query)
+            #     prob_pos_iter.extend(probability_pos)
+
+            # prob_comb.append(prob_pos_iter)
+
+
+            #########################################
+            ##### FOR WHEN WE WANT TO RUN LONGER ####
+
             proto_neg = feat_neg.mean(dim=0)
-            q_iterator = iter(q_loader)
+            q_batch_size = self.hparams.eval.query_batch_size
+            num_q = X_query.shape[0]
 
             print("Iteration number {}".format(i))
-            for batch in tqdm(q_iterator):
-                x_q, y_q = batch
-                x_q = x_q
-                # x_q = self.concate_mask(x_q, mask)
-                x_query = self.net(x_q)
 
-                proto_neg = proto_neg.detach().cpu()
-                x_query = x_query.detach().cpu()
+            start = 0
+            while start < num_q:
+                end = min(start + q_batch_size, num_q)
 
-                probability_pos = self.get_probability(pos_proto, proto_neg, x_query)
-                prob_pos_iter.extend(probability_pos)
+                x_q = X_query[start:end]
+                y_q = Y_query[start:end]
+
+                x_q = x_q.cuda()
+                feat_q = self.net(x_q)
+                feat_q = feat_q.detach().cpu()
+
+                prob = self.get_probability(pos_proto, proto_neg.detach().cpu(), feat_q)
+                prob_pos_iter.extend(prob)
+
+                start = end
 
             prob_comb.append(prob_pos_iter)
+
+            #########################################
 
         prob_final = np.mean(np.array(prob_comb), axis=0)
         # Save the probability here to perform model ensemble
