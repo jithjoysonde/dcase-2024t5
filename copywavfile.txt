@@ -49,6 +49,10 @@ source ./dcase_t5/bin/activate
 /export/home/4joyson/infhome/baseline/dcase-few-shot-bioacoustic/baselines/dcase2024_task5
 /export/home/4joyson/infhome/baseline/dcase-few-shot-bioacoustic/baselines/dcase2024_task5/configs
 
+/data/4joyson/eval$ python3 -m venv eval
+/data/4joyson/eval$ source eval/bin/activate
+
+
 Run 
 1. 
 python3 data_preparation.py --data-dir /data/msc-proj
@@ -56,7 +60,10 @@ python3 data_preparation.py --data-dir /data/msc-proj
 python3 train.py features.feature_types="pcen"  train_param.negative_train_contrast=false
 
 
-python3 train.py features.feature_types="spec"  train_param.negative_train_contrast=false exp_name="jjpcenNTCF"
+python3 train.py features.feature_types="pcen"  train_param.negative_train_contrast=true exp_name="jjpcenNTCF"
 
+python3 train.py features.feature_types="logmel" train_param.negative_train_contrast=false exp_name="jjpcenNTCF" 
 
 python3 test.py features.feature_types="logmel" train_param.negative_train_contrast=false exp_name="jjtestonVallogmelNTCF" ckpt_path="/data/4joyson/proj/logs/experiments/runs/baseline/2026-01-14_23-57-28/checkpoints/epoch_000_val_acc_0.81.ckpt" 
+
+python3 test.py features.feature_types="pcen" train_param.negative_train_contrast=true exp_name="jjtestonValpcenNTCT" ckpt_path="/data/4joyson/proj/logs/experiments/runs/baseline/2026-01-15_20-26-00/checkpoints/epoch_012_val_acc_0.70.ckpt" 
