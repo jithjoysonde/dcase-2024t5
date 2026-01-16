@@ -3,6 +3,7 @@ train: ${train_param}
 path: ${path}
 features: ${features}
 eval: ${eval_param}
+set: ${set}
 
 net:
   _target_: src.models.components.protonet.ResNet

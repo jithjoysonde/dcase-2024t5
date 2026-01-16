@@ -62,6 +62,7 @@ class PrototypeModule(LightningModule):
         path: dict = {},
         eval: dict = {},
         features: dict = {},
+        set: dict = {},
     ):
         super().__init__()
 
