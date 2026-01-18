@@ -56,22 +56,57 @@ pip3 install -r requirements.txt --extra-index-url https://download.pytorch.org/
 python3 data_preparation.py --data-dir /dir/to/local/dataset
 ```
 
-3. Change the root directory in [train.yaml](config/train.yaml).
+3. **Download BirdNET Model (Required for BirdNET-based experiments)**
+
+The BirdNET pre-trained model needs to be downloaded and placed in the correct directory for feature extraction.
+
+**Model Required:** `BirdNET_GLOBAL_6K_V2.4_Model_FP32.tflite`
+
+**Download Location:** Download the BirdNET V2.4 model from the [BirdNET-Analyzer GitHub repository](https://github.com/kahst/BirdNET-Analyzer) or from the [TFLite model releases](https://github.com/kahst/BirdNET-Analyzer/tree/main/checkpoints/V2.4).
+
+**Expected Directory Structure:**
+```
+birdnet/
+└── weights/
+    └── model/
+        └── V2.4/
+            ├── BirdNET_GLOBAL_6K_V2.4_Model_FP32.tflite  (download this file)
+            └── BirdNET_GLOBAL_6K_V2.4_Labels.txt         (already included)
+```
+
+**Installation:**
+```bash
+# Create directory if it doesn't exist
+mkdir -p birdnet/weights/model/V2.4
+
+# Download the model file (adjust URL if needed)
+# Option 1: Using wget
+wget -O birdnet/weights/model/V2.4/BirdNET_GLOBAL_6K_V2.4_Model_FP32.tflite \
+  https://github.com/kahst/BirdNET-Analyzer/raw/main/checkpoints/V2.4/BirdNET_GLOBAL_6K_V2.4_Model_FP32.tflite
+
+# Option 2: Download manually and place in the directory
+# Download from: https://github.com/kahst/BirdNET-Analyzer/tree/main/checkpoints/V2.4
+# Place the .tflite file in: birdnet/weights/model/V2.4/
+```
+
+**Note:** This model is only required if you plan to use BirdNET-based feature extraction or training configurations (e.g., `train_birdnet.yaml`).
+
+4. Change the root directory in [train.yaml](config/train.yaml).
 
 ```yaml
 path:
   root_dir: <your-root-directory>
 ```
 
-4. Train model with default configuration. Find more details in [train.yaml](config/train.yaml).
-5. Make your own training recipe. Ones can refer to [train.yaml](config/train.yaml) for more training options and [run.sh](run.sh) for more examples.
+5. Train model with default configuration. Find more details in [train.yaml](config/train.yaml).
+6. Make your own training recipe. Ones can refer to [train.yaml](config/train.yaml) for more training options and [run.sh](run.sh) for more examples.
 
 ```bash
 # use PCEN as audio features and disable negative hard sampling
 python3 train.py features.feature_types="pcen" train_param.negative_train_contrast=false
 ```
 
-6. Train model with CPU only.
+7. Train model with CPU only.
 
 ```bash
 # train on CPU
