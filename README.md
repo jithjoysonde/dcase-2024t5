@@ -14,7 +14,7 @@ changed files from original
 
 5. BirdNet pipeline. see extraction guide https://github.com/jithjoysonde/dcase-2024t5/blob/birdnet_experiments/BACKGROUND_EXTRACTION_GUIDE.md
 implementation details https://github.com/jithjoysonde/dcase-2024t5/blob/birdnet_experiments/BIRDNET_TEMPORAL_IMPLEMENTATION.md 
-as well BirdNet downloads required before proceeding with the BirdNet Pipeline
+as well BirdNet downloads required (see below) before proceeding with the BirdNet Pipeline
 -!
 # Baseline for DCASE 2024 Task 5
 
