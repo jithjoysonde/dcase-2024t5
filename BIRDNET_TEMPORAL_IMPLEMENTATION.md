@@ -1,39 +1,8 @@
 # BirdNet Temporal Embeddings Integration - Implementation Summary
 
 ## Overview
-We've implemented **Option 1: Re-extract with Sliding Window** to convert BirdNet's single-vector embeddings into temporal sequences suitable for few-shot learning.
+We've implemented Extraction with Sliding Window to convert BirdNet's single-vector embeddings into temporal sequences suitable for few-shot learning.
 
-## Key Changes Made
-
-### 1. **Feature Extraction (Sliding Windows)**
-**File**: `birdnet/feature_extractor.py`
-- **OLD**: Extract single 6522-dim embedding per audio file
-- **NEW**: Extract temporal embeddings using 3-second sliding windows
-  - Window size: 3.0 seconds (BirdNet input requirement)
-  - Hop size: 3.0 seconds (non-overlapping for speed)
-  - Output: `(num_windows, 6522)` array per audio file
-  
-**Example**: 1-hour audio file → ~1200 temporal windows → 1200×6522 embedding matrix
-
-### 2. **Dataset Loader Updates**
-**File**: `src/datamodules/components/birdnet_dataset.py`
-- Updated `fps` (frames per second) from 200 to 0.333 (one 3s window per 3 seconds of audio)
-- Fixed `select_segment()` to properly handle 2D embeddings `(time, 6522)`
-- Added proper padding and tiling logic for temporal segments
-- Removed assumptions about 1280-dim embeddings
-
-### 3. **Encoder Model Updates**
-**File**: `src/models/components/birdnet_encoder.py`
-- Updated BirdNetEncoder to accept 6522-dim embeddings (was 1280)
-- Temporal pooling applied to `(batch, time, 6522)` → `(batch, 6522)`
-- Supports 'mean', 'max', or 'both' pooling strategies
-
-### 4. **Configuration Updates**
-**Files**: 
-- `configs/train_birdnet.yaml`: `embedding_dim: 6522`
-- `configs/model/birdnet_protonet.yaml`: `embedding_dim: 6522`
-
-## Temporal Structure Explanation
 
 
 
@@ -101,11 +70,10 @@ python train.py --config-name train_birdnet +exp_name="BirdNet"
 
 ## Architecture Diagram
 
-```
 ┌─────────────────────────────────────────────────────────────┐
 │                      Training Pipeline                      │
 ├─────────────────────────────────────────────────────────────┤
-│                                                             │
+
 │  Audio Files → BirdNet Extraction (3s windows)             │
 │       ↓                                                      │
 │  Temporal Embeddings (num_windows, 6522)                   │
@@ -120,10 +88,4 @@ python train.py --config-name train_birdnet +exp_name="BirdNet"
 │       ↓                                                      │
 │  Contrastive Loss + PSDS Evaluation                         │
 │                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
 
-
----
-
-**Status**: Ready for extraction and training. All components integrated and tested.
