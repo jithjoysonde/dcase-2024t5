@@ -67,9 +67,22 @@ class PrototypeDataModule(LightningDataModule):
             PrototypeDynamicArrayDataSetVal,  # The validation dataset for validation process
             PrototypeDynamicArrayDataSetWithEval,  # Training with the first 5 validation data
         )
+        
+        # Check if using BirdNet embeddings
+        use_birdnet = getattr(self.hparams.features, 'use_birdnet', False)
+        if use_birdnet:
+            from src.datamodules.components.birdnet_dataset import BirdNetDataset
+            print("Using BirdNet pre-computed embeddings")
 
         # Training dataset
-        if self.hparams.train_param.use_validation_first_5:
+        if use_birdnet:
+            # Use BirdNet dataset with pre-computed embeddings
+            self.dataset = BirdNetDataset(
+                path=self.hparams.path,
+                features=self.hparams.features,
+                train_param=self.hparams.train_param,
+            )
+        elif self.hparams.train_param.use_validation_first_5:
             self.dataset = PrototypeDynamicArrayDataSetWithEval(
                 path=self.hparams.path,
                 features=self.hparams.features,
@@ -97,11 +110,19 @@ class PrototypeDataModule(LightningDataModule):
         )
 
         # Validation dataset
-        self.val_dataset = PrototypeDynamicArrayDataSetVal(
-            path=self.hparams.path,
-            features=self.hparams.features,
-            train_param=self.hparams.train_param,
-        )
+        if use_birdnet:
+            # Use BirdNet dataset for validation as well
+            self.val_dataset = BirdNetDataset(
+                path=self.hparams.path,
+                features=self.hparams.features,
+                train_param=self.hparams.train_param,
+            )
+        else:
+            self.val_dataset = PrototypeDynamicArrayDataSetVal(
+                path=self.hparams.path,
+                features=self.hparams.features,
+                train_param=self.hparams.train_param,
+            )
         self.val_sampler = IdentityBatchSampler(
             self.hparams.train_param,
             self.val_dataset.eval_class_idxs,
@@ -120,22 +141,35 @@ class PrototypeDataModule(LightningDataModule):
             PrototypeTestSet,
             PrototypeAdaSeglenTestSet,
             PrototypeAdaSeglenBetterNegTestSetV2,
+            BirdNetTestSet,
         )
 
-        if self.hparams.train_param.adaptive_seg_len:
-            self.data_test = PrototypeAdaSeglenBetterNegTestSetV2(
-                self.hparams.path,
-                self.hparams.features,
-                self.hparams.train_param,
-                self.hparams.eval_param,
-            )
+        # Initialize test dataset
+        if self.hparams.path.get('test_dir') and self.hparams.path.test_dir != "null":
+            if self.hparams.features.get('use_birdnet', False):
+                # Use BirdNet test dataset
+                self.data_test = BirdNetTestSet(
+                    self.hparams.path,
+                    self.hparams.features,
+                    self.hparams.train_param,
+                    self.hparams.eval_param,
+                )
+            elif self.hparams.train_param.adaptive_seg_len:
+                self.data_test = PrototypeAdaSeglenBetterNegTestSetV2(
+                    self.hparams.path,
+                    self.hparams.features,
+                    self.hparams.train_param,
+                    self.hparams.eval_param,
+                )
+            else:
+                self.data_test = PrototypeTestSet(
+                    self.hparams.path,
+                    self.hparams.features,
+                    self.hparams.train_param,
+                    self.hparams.eval_param,
+                )
         else:
-            self.data_test = PrototypeTestSet(
-                self.hparams.path,
-                self.hparams.features,
-                self.hparams.train_param,
-                self.hparams.eval_param,
-            )
+            self.data_test = None
 
     def train_dataloader(self):
         return self.train_loader

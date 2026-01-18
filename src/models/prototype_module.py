@@ -18,6 +18,7 @@ import pandas as pd
 import wandb
 from scipy.signal import chirp, find_peaks, peak_widths, peak_prominences
 import torch.nn.functional as F
+from hydra.core.hydra_config import HydraConfig
 
 from src.datamodules.components.batch_sampler import *
 from src.datamodules.components.Datagenerator import *
@@ -437,12 +438,19 @@ class PrototypeModule(LightningModule):
                     "Endtime": self.onset_offset[k]["offset_arr"],
                 }
             )
-            os.makedirs(str(k), exist_ok=False)
-            csv_path = "%s/Eval_raw.csv" % k
+            # Get Hydra output directory from hparams if available, otherwise use logs/test_results
+            if hasattr(self.hparams, 'original_work_dir'):
+                output_dir = os.path.join(self.hparams.original_work_dir, 'logs', 'test_results')
+            else:
+                output_dir = os.path.join(os.getcwd(), 'logs', 'test_results')
+            os.makedirs(output_dir, exist_ok=True)
+            threshold_dir = os.path.join(output_dir, str(k))
+            os.makedirs(threshold_dir, exist_ok=True)
+            csv_path = "%s/Eval_raw.csv" % threshold_dir
             df_out.to_csv(csv_path, index=False)
             # Postprocessing and evaluate
-            res = self.post_process(alpha=k)
-            res_new = self.post_process_new(alpha=k)
+            res = self.post_process(alpha=k, threshold_dir=threshold_dir)
+            res_new = self.post_process_new(alpha=k, threshold_dir=threshold_dir)
 
             if res["fmeasure"] > best_f_measure:
                 best_result = res
@@ -800,7 +808,7 @@ class PrototypeModule(LightningModule):
                 threshold_length=threshold_length,
             )
 
-    def post_process(self, dataset="VAL", alpha=0.9):
+    def post_process(self, dataset="VAL", alpha=0.9, threshold_dir=None):
         from src.utils.evaluation import evaluate
         from src.utils.post_proc import post_processing
 
@@ -808,8 +816,12 @@ class PrototypeModule(LightningModule):
         if val_path[-1] != "/":
             val_path += "/"
 
-        evaluation_file = "%s/Eval_raw.csv" % alpha
-        save_path = "%s" % alpha
+        # Use threshold_dir if provided, otherwise fall back to alpha for backward compatibility
+        if threshold_dir is None:
+            threshold_dir = str(alpha)
+        
+        evaluation_file = "%s/Eval_raw.csv" % threshold_dir
+        save_path = threshold_dir
 
         print("Before preprocessing: ")
         team_name = "Baseline_unprocessed"
@@ -837,7 +849,7 @@ class PrototypeModule(LightningModule):
             print("Threshold %s" % threshold)
             team_name = "Baseline" + str(threshold)
             new_evaluation_file = "%s/Eval_%s_threshold_ada_postproc_%s.csv" % (
-                alpha,
+                threshold_dir,
                 dataset,
                 threshold,
             )
@@ -873,7 +885,7 @@ class PrototypeModule(LightningModule):
         )
         return best_result[0]
 
-    def post_process_new(self, dataset="VAL", alpha=0.9):
+    def post_process_new(self, dataset="VAL", alpha=0.9, threshold_dir=None):
         from src.utils.evaluation import evaluate
         from src.utils.post_proc_new import post_processing
 
@@ -881,15 +893,19 @@ class PrototypeModule(LightningModule):
         if val_path[-1] != "/":
             val_path += "/"
 
-        evaluation_file = "%s/Eval_raw.csv" % alpha
-        save_path = "%s" % alpha
+        # Use threshold_dir if provided, otherwise fall back to alpha for backward compatibility
+        if threshold_dir is None:
+            threshold_dir = str(alpha)
+        
+        evaluation_file = "%s/Eval_raw.csv" % threshold_dir
+        save_path = threshold_dir
 
         best_result = None
         for threshold_length in np.arange(0.05, 0.25, 0.05):
             team_name = "Baseline" + str(threshold_length)
             print("Threshold length %s" % threshold_length)
             new_evaluation_file = "%s/Eval_%s_threshold_fix_length_postproc_%s.csv" % (
-                alpha,
+                threshold_dir,
                 dataset,
                 threshold_length,
             )
@@ -1092,8 +1108,15 @@ class PrototypeModule(LightningModule):
         prob_final = np.mean(np.array(prob_comb), axis=0)
         # Save the probability here to perform model ensemble
         filename = os.path.basename(audio_name).split(".")[0]
-        os.makedirs("prob_comb", exist_ok=True)
-        np.save("prob_comb/%s.npy" % filename, np.array(prob_comb))
+        # Get Hydra output directory from hparams if available, otherwise use logs/test_results
+        if hasattr(self.hparams, 'original_work_dir'):
+            output_dir = os.path.join(self.hparams.original_work_dir, 'logs', 'test_results')
+        else:
+            output_dir = os.path.join(os.getcwd(), 'logs', 'test_results')
+        os.makedirs(output_dir, exist_ok=True)
+        prob_comb_dir = os.path.join(output_dir, "prob_comb")
+        os.makedirs(prob_comb_dir, exist_ok=True)
+        np.save(os.path.join(prob_comb_dir, "%s.npy" % filename), np.array(prob_comb))
 
         thresh_list = np.arange(0, 1, 0.05)
         onset_offset_ret = {}
