@@ -234,7 +234,7 @@ def main(data_path: str):
        
     """"Feature extraction"""
     features = ["mel", "logmel", "pcen", "mfcc", "delta_mfcc"]
-    """
+    
     suffix = ".wav"
     print(f"Extracting features: {features}")
     # SAMPLE_RATE = 22050
@@ -245,7 +245,7 @@ def main(data_path: str):
     print(f"before process files")
     process(fe, files)
     print(f"After process files")
-    """
+    
     files = recursive_glob(PATH, ".wav")
     print(f"Files: {files}")
 
